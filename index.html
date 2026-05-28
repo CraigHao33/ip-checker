@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IP 地址检测</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    color: #e0e0e0;
+    padding: 20px;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 480px;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+  }
+
+  h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  h1 .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #4ade80;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  .section {
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #888;
+    margin-bottom: 8px;
+  }
+
+  .ip-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .ip-value {
+    font-size: 22px;
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    font-weight: 500;
+    color: #fff;
+    word-break: break-all;
+  }
+
+  .ip-value.loading {
+    color: #666;
+    font-size: 16px;
+    font-family: inherit;
+  }
+
+  .ip-value.error {
+    color: #f87171;
+    font-size: 14px;
+    font-family: inherit;
+  }
+
+  .copy-btn {
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #ccc;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+
+  .copy-btn:hover {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+  }
+
+  .copy-btn.copied {
+    background: rgba(74,222,128,0.2);
+    border-color: rgba(74,222,128,0.4);
+    color: #4ade80;
+  }
+
+  .geo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .geo-item {
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .geo-item .label {
+    font-size: 11px;
+    color: #777;
+    margin-bottom: 4px;
+  }
+
+  .geo-item .value {
+    font-size: 14px;
+    color: #ddd;
+    word-break: break-all;
+  }
+
+  .geo-item .value.loading {
+    color: #555;
+  }
+
+  .refresh-hint {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 12px;
+    color: #555;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #444;
+    border-top-color: #888;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1><span class="dot"></span>IP 地址检测</h1>
+
+  <div class="section">
+    <div class="section-label">IPv4</div>
+    <div class="ip-row">
+      <span id="ipv4" class="ip-value loading"><span class="spinner"></span>检测中...</span>
+      <button id="copy-v4" class="copy-btn" disabled>复制</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">IPv6</div>
+    <div class="ip-row">
+      <span id="ipv6" class="ip-value loading"><span class="spinner"></span>检测中...</span>
+      <button id="copy-v6" class="copy-btn" disabled>复制</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">位置信息</div>
+    <div class="geo-grid">
+      <div class="geo-item">
+        <div class="label">城市</div>
+        <div id="geo-city" class="value loading">—</div>
+      </div>
+      <div class="geo-item">
+        <div class="label">国家</div>
+        <div id="geo-country" class="value loading">—</div>
+      </div>
+      <div class="geo-item">
+        <div class="label">ISP</div>
+        <div id="geo-isp" class="value loading">—</div>
+      </div>
+      <div class="geo-item">
+        <div class="label">时区</div>
+        <div id="geo-tz" class="value loading">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="refresh-hint">页面刷新时自动重新检测</div>
+</div>
+
+<script>
+function set(el, text) {
+  const e = document.getElementById(el);
+  e.textContent = text;
+  e.classList.remove('loading');
+}
+
+function setError(el) {
+  const e = document.getElementById(el);
+  e.textContent = '不可用';
+  e.classList.remove('loading');
+  e.classList.add('error');
+}
+
+function setupCopy(btnId, sourceId) {
+  const btn = document.getElementById(btnId);
+  const source = document.getElementById(sourceId);
+
+  btn.addEventListener('click', () => {
+    const text = source.textContent;
+    if (!text || source.classList.contains('loading') || source.classList.contains('error')) return;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = '已复制';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = '复制';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  });
+}
+
+// Try each endpoint in order until one succeeds. Each fetcher receives the
+// Response object and returns the IP string (or throws).
+async function tryEndpoints(fetchers) {
+  for (const fn of fetchers) {
+    try {
+      return await fn();
+    } catch { /* try next */ }
+  }
+  throw new Error('all endpoints failed');
+}
+
+// --- IPv4 fetchers ---
+const ipv4Fetchers = [
+  async () => {
+    const r = await fetch('https://api.ip.sb/ip');
+    if (!r.ok) throw new Error();
+    return (await r.text()).trim();
+  },
+  async () => {
+    const r = await fetch('https://httpbin.org/ip');
+    if (!r.ok) throw new Error();
+    return (await r.json()).ip;
+  },
+  async () => {
+    const r = await fetch('https://api.ipify.org?format=json');
+    if (!r.ok) throw new Error();
+    return (await r.json()).ip;
+  },
+  async () => {
+    const r = await fetch('https://api.my-ip.io/ip');
+    if (!r.ok) throw new Error();
+    return (await r.text()).trim();
+  },
+];
+
+// --- IPv6 fetchers ---
+const ipv6Fetchers = [
+  async () => {
+    const r = await fetch('https://api64.ipify.org?format=json');
+    if (!r.ok) throw new Error();
+    return (await r.json()).ip;
+  },
+  async () => {
+    const r = await fetch('https://api6.ip.sb/ip');
+    if (!r.ok) throw new Error();
+    return (await r.text()).trim();
+  },
+];
+
+async function fetchIP(fetchers, elId, btnId) {
+  try {
+    const ip = await tryEndpoints(fetchers);
+    set(elId, ip);
+    document.getElementById(btnId).disabled = false;
+  } catch {
+    setError(elId);
+  }
+}
+
+// --- Geo fetchers ---
+const geoFields = {
+  city: 'geo-city',
+  country_name: 'geo-country',
+  org: 'geo-isp',
+  timezone: 'geo-tz',
+};
+
+const geoFetchers = [
+  // ip-api.com (free, no key, 45 req/min)
+  async () => {
+    const r = await fetch('https://ip-api.com/json/?fields=city,country,isp,timezone');
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    if (d.status === 'fail') throw new Error();
+    return {
+      city: d.city,
+      country_name: d.country,
+      org: d.isp,
+      timezone: d.timezone,
+    };
+  },
+  // ipapi.co
+  async () => {
+    const r = await fetch('https://ipapi.co/json/');
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    return {
+      city: d.city,
+      country_name: d.country_name,
+      org: d.org,
+      timezone: d.timezone,
+    };
+  },
+  // ipinfo.io
+  async () => {
+    const r = await fetch('https://ipinfo.io/json');
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+    return {
+      city: d.city,
+      country_name: d.country,
+      org: d.org,
+      timezone: d.timezone,
+    };
+  },
+];
+
+async function fetchGeo() {
+  try {
+    const data = await tryEndpoints(geoFetchers);
+    for (const [key, elId] of Object.entries(geoFields)) {
+      const val = data[key];
+      const el = document.getElementById(elId);
+      if (val) {
+        el.textContent = val;
+        el.classList.remove('loading');
+      } else {
+        el.textContent = '未知';
+        el.classList.remove('loading');
+      }
+    }
+  } catch {
+    for (const elId of Object.values(geoFields)) {
+      const el = document.getElementById(elId);
+      el.textContent = '不可用';
+      el.classList.remove('loading');
+      el.classList.add('error');
+    }
+  }
+}
+
+setupCopy('copy-v4', 'ipv4');
+setupCopy('copy-v6', 'ipv6');
+
+fetchIP(ipv4Fetchers, 'ipv4', 'copy-v4');
+fetchIP(ipv6Fetchers, 'ipv6', 'copy-v6');
+fetchGeo();
+</script>
+
+</body>
+</html>
